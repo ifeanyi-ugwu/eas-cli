@@ -23,6 +23,11 @@ import { BuildStep } from './BuildStep';
 import { BuildStepCompositeFunctionScope } from './BuildStepCompositeFunctionScope';
 import { BuildStepGlobalContext } from './BuildStepContext';
 import { BuildStepEnv } from './BuildStepEnv';
+import {
+  BuildStepInput,
+  BuildStepInputValueTypeName,
+  getDisallowedInputValueError,
+} from './BuildStepInput';
 import { BuildConfigError } from './errors';
 import { duplicates } from './utils/expodash/duplicates';
 import {
@@ -43,6 +48,7 @@ type CompositeFunctionCall = {
   compositeFunctionPath: string;
   /** Caller-assigned id used as prefix for all inner step ids and the composite function outputs step. */
   syntheticStepId: string;
+  name?: string;
   /** Caller-provided input values, consumed when composite function inputs are interpolated. */
   callWith?: Record<string, unknown>;
   callIf?: string;
@@ -93,13 +99,18 @@ export class CompositeFunctionExpander {
     const { compositeFunctionPath, syntheticStepId } = call;
     this.guardAgainstRunawayRecursion(compositeFunctionPath, visited);
 
-    const compositeFunction = this.lookupCompositeFunction(compositeFunctionPath);
-    const innerSteps = compositeFunction.runs.steps;
+    const action = this.lookupCompositeFunction(compositeFunctionPath);
+    const innerSteps = action.runs.steps;
 
     const { stepIdMap, newIds } = this.buildInnerStepIdMap(
       innerSteps,
       syntheticStepId,
       compositeFunctionPath
+    );
+    const { inputs, providedInputKeys } = this.buildActionInputs(
+      action,
+      compositeFunctionPath,
+      call.callWith
     );
 
     const nestedVisited = new Set(visited).add(compositeFunctionPath);
@@ -109,6 +120,9 @@ export class CompositeFunctionExpander {
       parent: call.parentScope,
       ifCondition: call.callIf,
       env: call.inheritedEnv,
+      compositeFunctionPath,
+      inputs,
+      providedInputKeys,
       stepIdAliases: stepIdMap,
     });
 
@@ -141,13 +155,13 @@ export class CompositeFunctionExpander {
   }
 
   private lookupCompositeFunction(compositeFunctionPath: string): CompositeFunctionConfig {
-    const compositeFunction = this.compositeFunctionCatalog[compositeFunctionPath];
-    if (!compositeFunction) {
+    const action = this.compositeFunctionCatalog[compositeFunctionPath];
+    if (!action) {
       throw new BuildConfigError(
         `Local composite function "${compositeFunctionPath}" does not exist. Expected a "function.yml" (or "function.yaml") file at "${compositeFunctionPath}" relative to the EAS project root (convention: ".eas/functions/<name>").`
       );
     }
-    return compositeFunction;
+    return action;
   }
 
   private expandInnerStep(
@@ -340,5 +354,76 @@ export class CompositeFunctionExpander {
       newIds.push(newId);
     }
     return { stepIdMap, newIds };
+  }
+
+  // Nullish `with` values are treated as absent so defaults resolve in the composite function's own scope.
+  private buildActionInputs(
+    action: CompositeFunctionConfig,
+    compositeFunctionPath: string,
+    callWith: Record<string, unknown> | undefined
+  ): { inputs: Map<string, BuildStepInput>; providedInputKeys: Set<string> } {
+    const inputs = new Map<string, BuildStepInput>();
+    const providedInputKeys = new Set<string>();
+    for (const declared of action.inputs ?? []) {
+      const definition =
+        typeof declared === 'string'
+          ? {
+              name: declared,
+              type: 'string',
+              required: false,
+              allowedValues: undefined as unknown[] | undefined,
+              defaultValue: undefined as unknown,
+            }
+          : {
+              name: declared.name,
+              type: declared.type,
+              required: declared.required ?? false,
+              allowedValues: declared.allowed_values,
+              defaultValue: declared.default_value,
+            };
+      const input = new BuildStepInput(this.ctx, {
+        id: definition.name,
+        stepDisplayName: compositeFunctionPath,
+        defaultValue: definition.defaultValue,
+        required: definition.required,
+        allowedValues: definition.allowedValues,
+        allowedValueTypeName: this.toInputValueTypeName(
+          definition.type,
+          compositeFunctionPath,
+          definition.name
+        ),
+      });
+      if (callWith && Object.prototype.hasOwnProperty.call(callWith, definition.name)) {
+        const value = callWith[definition.name];
+        if (value !== undefined) {
+          input.set(value);
+        }
+        if (value != null) {
+          providedInputKeys.add(definition.name);
+        }
+      }
+      const disallowedValueError = getDisallowedInputValueError(input, compositeFunctionPath);
+      if (disallowedValueError) {
+        throw new BuildConfigError(disallowedValueError);
+      }
+      inputs.set(definition.name, input);
+    }
+    return { inputs, providedInputKeys };
+  }
+
+  private toInputValueTypeName(
+    type: string,
+    compositeFunctionPath: string,
+    inputName: string
+  ): BuildStepInputValueTypeName {
+    const supported = Object.values(BuildStepInputValueTypeName) as string[];
+    if (!supported.includes(type)) {
+      throw new BuildConfigError(
+        `Composite function "${compositeFunctionPath}" input "${inputName}" has unsupported type "${type}". Supported types: ${supported.join(
+          ', '
+        )}.`
+      );
+    }
+    return type as BuildStepInputValueTypeName;
   }
 }
