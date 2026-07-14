@@ -8,6 +8,8 @@ This is the log of notable changes to EAS CLI and related packages.
 
 ### 🎉 New features
 
+- [eas-cli] Add `eas workflow:ssh <workflow-job-id> [command...]` to open an ssh session on the worker running a workflow job. ([#4032](https://github.com/expo/eas-cli/pull/4032) by [@gwdp](https://github.com/gwdp))
+
 ### 🐛 Bug fixes
 
 - [eas-cli] Remove temporary working directories after `eas build:inspect` copies inspect output, avoiding leftover disk usage after failed builds. ([#3981](https://github.com/expo/eas-cli/pull/3981) by [@szdziedzic](https://github.com/szdziedzic))
@@ -32,6 +34,8 @@ This is the log of notable changes to EAS CLI and related packages.
 - [eas-cli] Add `eas browse` to open the project page on expo.dev in a web browser, with an optional page argument (e.g. `eas browse build`, `eas browse hosting`) for project subpages and a `--no-browser` flag to print the URL. `eas open` is now an alias of `eas browse`. ([#4003](https://github.com/expo/eas-cli/pull/4003) by [@jonsamp](https://github.com/jonsamp))
 - [eas-cli] Add `--dev-domain` flag to `eas deploy` to choose the project's preview URL (`<name>.expo.app`) without prompting, allowing first-time deploys with `--non-interactive`. ([#4004](https://github.com/expo/eas-cli/pull/4004) by [@brentvatne](https://github.com/brentvatne))
 - [eas-cli] Add `-p` as an alias for `--platform` in `eas simulator:start`. ([#3902](https://github.com/expo/eas-cli/pull/3902) by [@brentvatne](https://github.com/brentvatne))
+
+### 🐛 Bug fixes
 
 ### 🧹 Chores
 
