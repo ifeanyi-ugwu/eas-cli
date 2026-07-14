@@ -1,4 +1,10 @@
-import { Artifacts, BuildContext, Builders, runGenericJobAsync } from '@expo/build-tools';
+import {
+  Artifacts,
+  BuildContext,
+  Builders,
+  TurtleSshSession,
+  runGenericJobAsync,
+} from '@expo/build-tools';
 import {
   Android,
   BuildJob,
@@ -19,6 +25,8 @@ import { Analytics, Event, logProjectDependenciesAsync } from './external/analyt
 import { prepareRuntimeEnvironment } from './runtimeEnvironment';
 import { cleanUpWorkingdir } from './workingdir';
 
+const DEFAULT_SSH_IDLE_TIMEOUT_SECONDS = 5 * 60;
+
 export async function build({
   ctx,
   buildId,
@@ -29,6 +37,7 @@ export async function build({
   analytics: Analytics;
 }): Promise<Artifacts> {
   const { job, logger } = ctx;
+  let sshHoldPromise: Promise<void> | undefined;
   try {
     analytics.logEvent(Event.WORKER_BUILD_START, {});
 
@@ -48,6 +57,60 @@ export async function build({
         await prepareRuntimeEnvironment(ctx, ctx.job.builderEnvironment);
       }
     });
+
+    const sshEnabled = Boolean(ctx.env.EAS_SSH_SESSION_ID);
+    if (sshEnabled) {
+      await ctx.runBuildPhase(BuildPhase.SSH_SESSION, async () => {
+        try {
+          ctx.logger.info('Starting an SSH debug session for this job.');
+          const handle = await TurtleSshSession.startSshSessionAsync(ctx, {
+            turtleSshSessionId: TurtleSshSession.getTurtleSshSessionIdOrThrow(ctx.env),
+            relayServerUrl: TurtleSshSession.getSshRelayServerUrl(ctx.env),
+          });
+          const idleTimeoutSeconds = resolveSshIdleTimeoutSeconds(
+            ctx.env.EAS_SSH_IDLE_TIMEOUT_SECONDS
+          );
+          const idleTimeoutMinutes = Math.round(idleTimeoutSeconds / 60);
+          const workflowJobId = ctx.env.__WORKFLOW_JOB_ID;
+          ctx.logger.info(
+            [
+              'SSH session is ready.',
+              ...(workflowJobId
+                ? [
+                    '',
+                    'Connect from your machine with:',
+                    `    eas workflow:ssh ${workflowJobId}`,
+                    '',
+                  ]
+                : []),
+              `The session stays available while a client is connected and closes after ${idleTimeoutMinutes} minute(s) with none connected. If the job's work finishes first, the worker stays up until the session closes.`,
+            ].join('\n')
+          );
+
+          const sshLogger = logger.child({ phase: BuildPhase.SSH_SESSION });
+          sshHoldPromise = TurtleSshSession.holdSshSessionUntilIdleAsync({
+            getConnectedClientCount: () => handle.getConnectedClientCountAsync(),
+            ensureConnected: () => handle.ensureConnectedAsync(),
+            idleTimeoutSeconds,
+            logger: sshLogger,
+          })
+            .catch(err => {
+              sshLogger.warn({ err }, 'The SSH hold ended unexpectedly.');
+            })
+            .then(() =>
+              handle.stopAsync().catch(err => {
+                sshLogger.warn({ err }, 'Failed to tear down the SSH session.');
+              })
+            );
+        } catch (err) {
+          ctx.logger.warn(
+            { err },
+            'Failed to establish the SSH session; the job will continue without it.'
+          );
+          ctx.markBuildPhaseHasWarnings();
+        }
+      });
+    }
 
     let artifacts: Artifacts;
 
@@ -89,11 +152,19 @@ export async function build({
     }
     throw err;
   } finally {
+    if (sshHoldPromise) {
+      await sshHoldPromise;
+    }
     if (config.env === 'development') {
       await cleanUpWorkingdir();
     }
     await analytics.flushEventsAsync();
   }
+}
+
+function resolveSshIdleTimeoutSeconds(rawValue: string | undefined): number {
+  const parsed = Number.parseInt(rawValue ?? '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_SSH_IDLE_TIMEOUT_SECONDS;
 }
 
 function logBuildError(logger: bunyan, analytics: Analytics, err: Error): void {

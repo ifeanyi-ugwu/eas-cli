@@ -16,6 +16,7 @@ This is the log of notable changes to EAS CLI and related packages.
 
 - [eas-build-job] Add an `SSH_SESSION` build phase for upcoming worker SSH support. ([#4029](https://github.com/expo/eas-cli/pull/4029) by [@gwdp](https://github.com/gwdp))
 - [build-tools] Add SSH session helpers to the worker. ([#4030](https://github.com/expo/eas-cli/pull/4030) by [@gwdp](https://github.com/gwdp))
+- [worker] Add SSH session support to the worker. ([#4031](https://github.com/expo/eas-cli/pull/4031) by [@gwdp](https://github.com/gwdp))
 - [eas-cli] Bump `tmp` to `0.2.7` to resolve [Dependabot alert 423](https://github.com/expo/eas-cli/security/dependabot/423). ([#3965](https://github.com/expo/eas-cli/pull/3965) by [@szdziedzic](https://github.com/szdziedzic))
 - [worker] Bump `ws` to patched releases to resolve [Dependabot alert 462](https://github.com/expo/eas-cli/security/dependabot/462). ([#3963](https://github.com/expo/eas-cli/pull/3963) by [@szdziedzic](https://github.com/szdziedzic))
 - Bump `lodash` and `lodash-es` to `4.18.1` across workspaces and upgrade GraphQL Code Generator to remove the remaining vulnerable transitive copy for Dependabot alert 354. ([#4009](https://github.com/expo/eas-cli/pull/4009) by [@sjchmiela](https://github.com/sjchmiela))
