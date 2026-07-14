@@ -11,6 +11,7 @@ import {
   CompositeFunctionCatalog,
   CompositeFunctionConfig,
   FunctionStep,
+  JobInterpolationContext,
   ShellStep,
   Step,
   isStepFunctionStep,
@@ -28,7 +29,12 @@ import {
   BuildStepInputValueTypeName,
   getDisallowedInputValueError,
 } from './BuildStepInput';
+import { BuildStepOutput } from './BuildStepOutput';
 import { BuildConfigError } from './errors';
+import {
+  resolveInterpolatedTarget,
+  stringifyInterpolatedResult,
+} from './utils/compositeFunctionInterpolation';
 import { duplicates } from './utils/expodash/duplicates';
 import {
   getCompositeFunctionCallWorkingDirectoryError,
@@ -79,6 +85,7 @@ export class CompositeFunctionExpander {
       {
         compositeFunctionPath,
         syntheticStepId,
+        name: step.name,
         callWith: step.with,
         callIf: step.if,
         inheritedEnv: step.env,
@@ -100,6 +107,7 @@ export class CompositeFunctionExpander {
     this.guardAgainstRunawayRecursion(compositeFunctionPath, visited);
 
     const action = this.lookupCompositeFunction(compositeFunctionPath);
+    const actionDisplayName = call.name ?? action.name ?? compositeFunctionPath;
     const innerSteps = action.runs.steps;
 
     const { stepIdMap, newIds } = this.buildInnerStepIdMap(
@@ -134,7 +142,15 @@ export class CompositeFunctionExpander {
       })
     );
 
-    return buildSteps;
+    const syntheticOutputsStep = this.maybeCreateActionOutputsStep(action, {
+      syntheticStepId,
+      actionDisplayName,
+      scope,
+      // Nested calls stay hidden; top-level composite function outputs stay public.
+      isCompositeFunctionInternal: call.parentScope !== undefined,
+    });
+
+    return syntheticOutputsStep ? [...buildSteps, syntheticOutputsStep] : buildSteps;
   }
 
   private guardAgainstRunawayRecursion(
@@ -233,6 +249,7 @@ export class CompositeFunctionExpander {
       {
         compositeFunctionPath,
         syntheticStepId: newId,
+        name: innerStep.name,
         callWith: innerStep.with,
         callIf: overrides.ifCondition,
         parentScope: scope,
@@ -425,5 +442,65 @@ export class CompositeFunctionExpander {
       );
     }
     return type as BuildStepInputValueTypeName;
+  }
+
+  /**
+   * Action-level `outputs:` are exposed on the caller's step id (e.g. `setup.outputs.version`),
+   * so callers can reference them like any other step. This synthetic step runs after the inner
+   * steps and copies templated values into those outputs.
+   */
+  private maybeCreateActionOutputsStep(
+    action: CompositeFunctionConfig,
+    {
+      syntheticStepId,
+      actionDisplayName,
+      scope,
+      isCompositeFunctionInternal,
+    }: {
+      syntheticStepId: string;
+      actionDisplayName: string;
+      scope: BuildStepCompositeFunctionScope;
+      isCompositeFunctionInternal: boolean;
+    }
+  ): BuildStep | undefined {
+    const outputEntries = Object.entries(action.outputs ?? {});
+    if (outputEntries.length === 0) {
+      return undefined;
+    }
+
+    const outputTemplates = outputEntries.map(([name, output]) => ({
+      name,
+      template: output.value,
+    }));
+
+    const outputs = outputTemplates.map(
+      ({ name }) =>
+        new BuildStepOutput(this.ctx, {
+          id: name,
+          stepDisplayName: actionDisplayName,
+          required: true,
+        })
+    );
+
+    return new BuildStep(this.ctx, {
+      id: syntheticStepId,
+      displayName: actionDisplayName,
+      fn: (stepCtx, { outputs: outputById, env: stepEnv }) => {
+        const base: JobInterpolationContext = {
+          ...stepCtx.global.getInterpolationContext(),
+          env: stepEnv,
+        };
+        const scopedContext = scope.getScopedInterpolationContext(base);
+        for (const { name, template } of outputTemplates) {
+          outputById[name].set(
+            stringifyInterpolatedResult(resolveInterpolatedTarget(template, scopedContext))
+          );
+        }
+      },
+      outputs,
+      ifCondition: '${{ always() }}',
+      compositeFunctionScope: scope,
+      isCompositeFunctionInternal,
+    });
   }
 }
