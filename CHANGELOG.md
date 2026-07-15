@@ -9,6 +9,7 @@ This is the log of notable changes to EAS CLI and related packages.
 ### 🎉 New features
 
 - [eas-cli] Add `eas workflow:ssh <workflow-job-id> [command...]` to open an ssh session on the worker running a workflow job. ([#4032](https://github.com/expo/eas-cli/pull/4032) by [@gwdp](https://github.com/gwdp))
+- [eas-cli] Add `--ssh` (and `--ssh-idle-timeout`) to `eas workflow:run` to enable ssh on the run's VM jobs. ([#4033](https://github.com/expo/eas-cli/pull/4033) by [@gwdp](https://github.com/gwdp))
 
 ### 🐛 Bug fixes
 

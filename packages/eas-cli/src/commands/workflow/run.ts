@@ -78,6 +78,19 @@ import { uploadAccountScopedProjectSourceAsync } from '../../project/uploadAccou
 import { enableJsonOutput, printJsonOnlyOutput } from '../../utils/json';
 import { WorkflowFile } from '../../utils/workflowFile';
 
+export function resolveWorkflowRunSshInput({
+  ssh,
+  idleTimeoutSeconds,
+}: {
+  ssh: boolean;
+  idleTimeoutSeconds: number | undefined;
+}): { idleTimeoutSeconds: number | undefined } | null {
+  if (idleTimeoutSeconds !== undefined && !ssh) {
+    throw new Error('--ssh-idle-timeout requires --ssh.');
+  }
+  return ssh ? { idleTimeoutSeconds } : null;
+}
+
 export default class WorkflowRun extends EasCommand {
   static override description =
     'run an EAS workflow. The entire local project directory will be packaged and uploaded to EAS servers for the workflow run, unless the --ref flag is used.';
@@ -110,6 +123,17 @@ export default class WorkflowRun extends EasCommand {
         "The git reference must exist in the project's git repository, and the workflow file must exist at that reference. When this flag is used, the local project is not uploaded; instead, the workflow is run from the exact state of the project at the chosen reference.",
       summary: 'Git reference to run the workflow on',
     }),
+    ssh: Flags.boolean({
+      default: false,
+      description:
+        'Enable an SSH session on each VM job so you can connect with `eas workflow:ssh` and debug it live.',
+      summary: '[EXPERIMENTAL] Enable SSH on the run',
+    }),
+    'ssh-idle-timeout': Flags.integer({
+      description:
+        'Seconds an SSH session stays open with no client connected before it closes. Requires --ssh.',
+      summary: '[EXPERIMENTAL] SSH idle timeout in seconds',
+    }),
     ...EasJsonOnlyFlag,
   };
 
@@ -126,6 +150,11 @@ export default class WorkflowRun extends EasCommand {
     if (flags.json) {
       enableJsonOutput();
     }
+
+    const sshInput = resolveWorkflowRunSshInput({
+      ssh: flags.ssh,
+      idleTimeoutSeconds: flags['ssh-idle-timeout'],
+    });
 
     const {
       getDynamicPrivateProjectConfigAsync,
@@ -272,6 +301,7 @@ export default class WorkflowRun extends EasCommand {
           workflowRevisionId: workflowRevisionId ?? '',
           gitRef,
           inputs,
+          ssh: sshInput,
         });
       } catch (err) {
         throw new Error(`Failed to create workflow run: ${err}`);
@@ -341,6 +371,7 @@ export default class WorkflowRun extends EasCommand {
               packageJsonBucketKey,
               projectRootDirectory,
             },
+            ssh: sshInput,
           },
         }));
       } catch (err) {
@@ -352,6 +383,12 @@ export default class WorkflowRun extends EasCommand {
 
     Log.newLine();
     Log.log(`See logs: ${link(getWorkflowRunUrl(account.name, projectName, workflowRunId))}`);
+
+    if (sshInput) {
+      Log.log(
+        "SSH debugging enabled for this run. Each VM job's logs will show the `eas workflow:ssh` command to connect."
+      );
+    }
 
     if (!flags.wait) {
       if (flags.json) {
