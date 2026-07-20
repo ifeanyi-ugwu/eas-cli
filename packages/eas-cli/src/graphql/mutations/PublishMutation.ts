@@ -17,7 +17,7 @@ import {
 } from '../generated';
 import { UpdateFragmentNode } from '../types/Update';
 
-const turtleJobRunId = process.env.EAS_BUILD_ID;
+const turtleJobRunId = process.env.EAS_JOB_TYPE === 'jobRun' ? process.env.EAS_BUILD_ID : undefined;
 
 export const PublishMutation = {
   async getUploadURLsAsync(
