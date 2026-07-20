@@ -9,6 +9,7 @@ This is the log of notable changes to EAS CLI and related packages.
 ### 🎉 New features
 
 - [eas-cli] Support drill-down from event lists in observe:session. ([#3987](https://github.com/expo/eas-cli/pull/3987) by [@douglowder](https://github.com/douglowder))
+- [eas-cli] Add `eas simulator:availability` to check whether EAS Simulator is enabled for the current project account. ([#4045](https://github.com/expo/eas-cli/pull/4045) by [@gwdp](https://github.com/gwdp))
 
 ### 🐛 Bug fixes
 
