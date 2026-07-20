@@ -74,9 +74,11 @@ describe(getBuildEnv.name, () => {
         username: 'expo-user',
       } as any,
       buildId: 'build-id',
+      jobType: 'build',
     });
 
     expect(env.EAS_CLI_SENTRY_DSN).toBe(config.sentry.dsn);
+    expect(env.EAS_JOB_TYPE).toBe('build');
   });
 
   it('does not add precompiled modules env vars to flagged iOS jobs', () => {
@@ -97,6 +99,7 @@ describe(getBuildEnv.name, () => {
         username: 'expo-user',
       } as any,
       buildId: 'build-id',
+      jobType: 'build',
     });
 
     expect(env.EAS_USE_PRECOMPILED_MODULES).toBeUndefined();
@@ -123,6 +126,7 @@ describe(getBuildEnv.name, () => {
         username: 'expo-user',
       } as any,
       buildId: 'build-id',
+      jobType: 'build',
     });
 
     expect(env.EAS_USE_PRECOMPILED_MODULES).toBe('1');
@@ -147,6 +151,7 @@ describe(getBuildEnv.name, () => {
         username: 'expo-user',
       } as any,
       buildId: 'build-id',
+      jobType: 'build',
     });
 
     expect(env.EAS_USE_PRECOMPILED_MODULES).toBeUndefined();
@@ -173,6 +178,7 @@ describe(getBuildEnv.name, () => {
         username: 'expo-user',
       } as any,
       buildId: 'build-id',
+      jobType: 'build',
     });
 
     expect({ ...baseEnv, ...job.builderEnvironment.env }.EAS_USE_PRECOMPILED_MODULES).toBe('0');
@@ -200,6 +206,7 @@ describe(getBuildEnv.name, () => {
         username: 'expo-user',
       } as any,
       buildId: 'build-id',
+      jobType: 'build',
     });
 
     expect(env.NPM_CACHE_URL).toBeUndefined();
@@ -233,6 +240,7 @@ describe(getBuildEnv.name, () => {
         username: 'expo-user',
       } as any,
       buildId: 'build-id',
+      jobType: 'build',
     });
 
     expect(env.NPM_CACHE_URL).toBeUndefined();
@@ -270,6 +278,7 @@ describe(getBuildEnv.name, () => {
         username: 'expo-user',
       } as any,
       buildId: 'build-id',
+      jobType: 'build',
     });
 
     expect(env.NPM_CACHE_URL).toBeUndefined();
@@ -354,6 +363,7 @@ describe(getBuildEnv.name, () => {
         username: 'expo-user',
       } as any,
       buildId: 'build-id',
+      jobType: 'build',
     });
 
     expect(env.NODE_OPTIONS).toBe(
