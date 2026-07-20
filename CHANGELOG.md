@@ -9,6 +9,7 @@ This is the log of notable changes to EAS CLI and related packages.
 ### 🎉 New features
 
 - [eas-cli] Support drill-down from event lists in observe:session. ([#3987](https://github.com/expo/eas-cli/pull/3987) by [@douglowder](https://github.com/douglowder))
+- [eas-cli] Prompt to select a platform in `eas simulator:start` when `--platform` is omitted, instead of erroring out. ([#4043](https://github.com/expo/eas-cli/pull/4043) by [@szdziedzic](https://github.com/szdziedzic))
 
 ### 🐛 Bug fixes
 
